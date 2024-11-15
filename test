@@ -1,0 +1,180 @@
+import tkinter as tk
+from tkinter import ttk, messagebox
+import locale
+
+class CryptoTaxCalculator:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("仮想通貨配布・税金計算アプリ")
+        
+        # メインフレームの作成（スクロール可能に）
+        main_frame = ttk.Frame(root)
+        main_frame.grid(row=0, column=0, sticky="nsew")
+        
+        # スタイル設定
+        style = ttk.Style()
+        style.configure('TLabel', padding=5)
+        style.configure('TEntry', padding=5)
+        style.configure('TButton', padding=5)
+        
+        # 入力フレーム
+        input_frame = ttk.LabelFrame(main_frame, text="基本情報入力", padding=10)
+        input_frame.grid(row=0, column=0, padx=10, pady=5, sticky="nsew")
+        
+        # 基本入力フィールド
+        self.create_input_field(input_frame, "あやしいコインの保有数:", 0)
+        self.tlc_amount = self.entry
+        
+        self.create_input_field(input_frame, "交換レート (あやしいコイン:RYO, 5以上):", 1)
+        self.exchange_rate = self.entry
+        
+        self.create_input_field(input_frame, "RYOの現在価格 (円):", 2)
+        self.ryo_price = self.entry
+        
+        self.create_input_field(input_frame, "現在の年収 (円):", 3)
+        self.current_income = self.entry
+        
+        self.create_input_field(input_frame, "売却予定RYO数:", 4)
+        self.sell_amount = self.entry
+
+        # 経費フレーム
+        expense_frame = ttk.LabelFrame(main_frame, text="経費入力", padding=10)
+        expense_frame.grid(row=1, column=0, padx=10, pady=5, sticky="nsew")
+
+        # 経費入力フィールド
+        self.create_input_field(expense_frame, "取引所手数料 (円):", 0)
+        self.exchange_fee = self.entry
+        
+        self.create_input_field(expense_frame, "広告宣伝・布教活動費 (円):", 1)
+        self.mining_equipment = self.entry
+        
+        self.create_input_field(expense_frame, "コミュニティ運営費 (円):", 2)
+        self.electricity = self.entry
+        
+        self.create_input_field(expense_frame, "RYOコインでデート代 (円):", 3)
+        self.internet = self.entry
+        
+        self.create_input_field(expense_frame, "その他経費 (円):", 4)
+        self.other_expenses = self.entry
+        
+        # 計算ボタン
+        ttk.Button(main_frame, text="計算", command=self.calculate).grid(row=2, column=0, pady=10)
+        
+        # 結果フレーム
+        result_frame = ttk.LabelFrame(main_frame, text="計算結果", padding=10)
+        result_frame.grid(row=0, column=1, rowspan=3, padx=10, pady=5, sticky="nsew")
+        
+        # 結果表示用のラベル
+        self.result_labels = {}
+        results = [
+            "交換後の総RYO数",
+            "毎月解放されるRYO数",
+            "毎月の暫定円価値",
+            "売却時の追加所得",
+            "総経費",
+            "経費控除後の所得",
+            "合計所得",
+            "適用税率",
+            "納税額",
+            "経費控除による節税額"
+        ]
+        
+        for i, label in enumerate(results):
+            ttk.Label(result_frame, text=label + ":").grid(row=i, column=0, sticky="w")
+            self.result_labels[label] = ttk.Label(result_frame, text="---")
+            self.result_labels[label].grid(row=i, column=1, sticky="e")
+
+    def create_input_field(self, parent, label_text, row):
+        ttk.Label(parent, text=label_text).grid(row=row, column=0, sticky="w")
+        self.entry = ttk.Entry(parent)
+        self.entry.insert(0, "0")  # デフォルト値として0を設定
+        self.entry.grid(row=row, column=1, padx=5, pady=2)
+        return self.entry
+
+    def get_tax_rate(self, income):
+        tax_brackets = [
+            (1000, 1949000, 0.05, 0),
+            (1950000, 3299000, 0.10, 97500),
+            (3300000, 6949000, 0.20, 427500),
+            (6950000, 8999000, 0.23, 636000),
+            (9000000, 17999000, 0.33, 1536000),
+            (18000000, 39999000, 0.40, 2796000),
+            (40000000, float('inf'), 0.45, 4796000)
+        ]
+        
+        for min_income, max_income, rate, deduction in tax_brackets:
+            if min_income <= income <= max_income:
+                return rate, deduction
+        return 0.45, 4796000
+
+    def calculate(self):
+        try:
+            # 基本情報の取得
+            tlc = float(self.tlc_amount.get())
+            rate = float(self.exchange_rate.get())
+            if rate < 5:
+                messagebox.showerror("エラー", "交換レートは5以上である必要があります")
+                return
+            
+            ryo_price = float(self.ryo_price.get())
+            current_income = float(self.current_income.get())
+            sell_amount = float(self.sell_amount.get())
+            
+            # 経費の取得
+            expenses = {
+                "取引所手数料": float(self.exchange_fee.get()),
+                "広告宣伝費・布教活動費": float(self.mining_equipment.get()),
+                "コミュニティ運営費": float(self.electricity.get()),
+                "RYOコインでデート費": float(self.internet.get()),
+                "その他経費": float(self.other_expenses.get())
+            }
+            
+            # 総経費の計算
+            total_expenses = sum(expenses.values())
+            
+            # 基本計算
+            total_ryo = tlc * rate
+            monthly_release = total_ryo * 0.0408333
+            monthly_value = monthly_release * ryo_price
+            
+            # 売却による収入計算
+            additional_income = sell_amount * ryo_price
+            
+            # 経費控除後の所得計算
+            income_after_expenses = additional_income - total_expenses
+            total_income = current_income + income_after_expenses
+            
+            # 税額計算（経費控除前）
+            tax_rate_before, deduction = self.get_tax_rate(current_income + additional_income)
+            tax_amount_before = ((current_income + additional_income) * tax_rate_before) - deduction
+            
+            # 税額計算（経費控除後）
+            tax_rate_after, deduction = self.get_tax_rate(total_income)
+            tax_amount_after = (total_income * tax_rate_after) - deduction
+            
+            # 節税額の計算
+            tax_savings = tax_amount_before - tax_amount_after
+            
+            # 結果の更新
+            locale.setlocale(locale.LC_ALL, '')
+            self.result_labels["交換後の総RYO数"].config(text=f"{total_ryo:,.2f} RYO")
+            self.result_labels["毎月解放されるRYO数"].config(text=f"{monthly_release:,.2f} RYO")
+            self.result_labels["毎月の暫定円価値"].config(text=f"{monthly_value:,.0f} 円")
+            self.result_labels["売却時の追加所得"].config(text=f"{additional_income:,.0f} 円")
+            self.result_labels["総経費"].config(text=f"{total_expenses:,.0f} 円")
+            self.result_labels["経費控除後の所得"].config(text=f"{income_after_expenses:,.0f} 円")
+            self.result_labels["合計所得"].config(text=f"{total_income:,.0f} 円")
+            self.result_labels["適用税率"].config(text=f"{tax_rate_after*100:.1f}%")
+            self.result_labels["納税額"].config(text=f"{tax_amount_after:,.0f} 円")
+            self.result_labels["経費控除による節税額"].config(text=f"{tax_savings:,.0f} 円")
+            
+        except ValueError:
+            messagebox.showerror("エラー", "すべての入力欄に有効な数値を入力してください")
+
+def main():
+    root = tk.Tk()
+    app = CryptoTaxCalculator(root)
+    root.mainloop()
+
+if __name__ == "__main__":
+    main()
